@@ -1,0 +1,2 @@
+Model,F1 Score,Exact Match,Hallucination Rate,Semantic Similarity,BLEU Score
+my_model,0.1288067545957749,0.0,0.0,0.6860054869055748,0.052065030988797695
