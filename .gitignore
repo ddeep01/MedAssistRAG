@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Caches & OS files
+.DS_Store
+.pytest_cache/
+.idea/
+.vscode/
+*.tmp
+*.log
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
+# Large Datasets & Embeddings
+data/data_combined/
+data/embeddings/
+data/processed/
+data/raw/
+data/tokenized/
+data/finetune_data.json
+
+# Model Weights & Checkpoints
+models/*
+!models/retriever/
+!models/reranker/
+!models/generator/
