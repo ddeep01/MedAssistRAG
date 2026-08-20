@@ -572,15 +572,6 @@ Return Answer
 
 ---
 
-# 👥 Contributors
-
-* Xena Doris Pereira
-* Angel Manoj
-* Deep Patel
-* Pronnati Tapaswi
-
----
-
 # ⚠️ Disclaimer
 
 This project is intended for research and educational purposes only.

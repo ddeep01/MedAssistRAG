@@ -1,67 +1,146 @@
 import json
+import pandas as pd
 from tqdm import tqdm
 
-# ✅ Correct import
 from src.retriever.search import Retriever
 
 
-import pandas as pd
+# ============================================================
+# Configuration
+# ============================================================
 
-import pandas as pd
+INPUT_FILE = "data/processed/qa_dataset_large.csv"
+OUTPUT_FILE = "data/finetune_data.json"
+
+MAX_SAMPLES = 200
+TOP_K = 3
+
+
+# ============================================================
+# Load QA Dataset
+# ============================================================
 
 def load_dataset():
-    df = pd.read_csv("data/processed/qa_dataset_large.csv")
+    df = pd.read_csv(INPUT_FILE)
 
     data = []
 
     for _, row in df.iterrows():
+
         question = str(row["question"]).strip()
         answer = str(row["answer"]).strip()
+        source = str(row["source"]).strip()
 
-        if question and answer:
-            data.append({
+        if not question or not answer:
+            continue
+
+        data.append({
             "question": question,
-            "answer": f"{answer} (Source: {row['source']})"
-})
+            "answer": answer,
+            "source": source
+        })
+
     return data
 
 
-def create_training_data(data, max_samples=200):
+# ============================================================
+# Create TinyLlama Fine-Tuning Dataset
+# ============================================================
+
+def create_training_data(data, max_samples=MAX_SAMPLES):
+
     formatted = []
 
-    # ✅ Initialize retriever ONCE (important for speed)
+    # Initialize retriever once
     retriever = Retriever()
 
-    for i, sample in enumerate(tqdm(data)):
+    for i, sample in enumerate(tqdm(data, desc="Creating training data")):
+
         if i >= max_samples:
             break
 
-        # Extract fields safely
-        question = sample.get("question", "")
-        answer = sample.get("answer", "No answer available")
+        question = sample["question"]
+        answer = sample["answer"]
+        source = sample["source"]
 
-        if not question:
+        if not question or not answer:
             continue
 
-        # ✅ Retrieve context from FAISS
-        docs = retriever.search(question, k=3)
+        # ----------------------------------------------------
+        # Retrieve context using existing FAISS retriever
+        # ----------------------------------------------------
+
+        docs = retriever.search(
+            question,
+            k=TOP_K
+        )
+
         context = " ".join(docs)
 
-        # ✅ Format for training
+        # ----------------------------------------------------
+        # TinyLlama prompt format
+        # ----------------------------------------------------
+
+        prompt = f"""### Instruction:
+You are a medical assistant. Answer the user's question using only the provided context.
+
+If the answer cannot be found in the context, say "I don't know."
+
+### Context:
+{context}
+
+### Question:
+{question}
+
+### Answer:
+"""
+
+        # ----------------------------------------------------
+        # Final training text
+        # ----------------------------------------------------
+
+        output = f"{answer} (Source: {source})"
+
         formatted.append({
-            "input": f"Question: {question}\nContext: {context}",
-            "output": f"{answer} (Source: doc_1)"
+            "prompt": prompt,
+            "response": output
         })
 
     return formatted
 
 
+# ============================================================
+# Main
+# ============================================================
+
 if __name__ == "__main__":
+
+    print("Loading QA dataset...")
+
     data = load_dataset()
 
-    formatted = create_training_data(data, max_samples=200)
+    print(f"Loaded {len(data)} QA samples.")
 
-    with open("data/finetune_data.json", "w") as f:
-        json.dump(formatted, f, indent=2)
+    formatted = create_training_data(
+        data,
+        max_samples=MAX_SAMPLES
+    )
 
-    print(f"✅ Generated {len(formatted)} REAL samples!")
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            formatted,
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    print(
+        f"✅ Generated {len(formatted)} TinyLlama training samples!"
+    )
+
+    print(f"✅ Saved to: {OUTPUT_FILE}")
