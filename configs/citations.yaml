@@ -1,0 +1,6 @@
+# Citations & Source Attribution Configuration for MedAssistRAG
+
+citations:
+  enabled: true
+  max_evidence_chunks: 5
+  strip_invalid_citations: true

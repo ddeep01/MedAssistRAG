@@ -48,14 +48,20 @@ class EntityStore:
             "body_parts": sorted(list(set(self.body_parts))),
         }
 
-    def merge(self, new_entities: Dict[str, List[str]]) -> None:
+    def merge(self, new_entities: Dict[str, List[Any]]) -> None:
         """Merges and deduplicates new extracted entities into existing store."""
         for key in ["conditions", "symptoms", "medications", "tests", "procedures", "body_parts"]:
             items = new_entities.get(key, [])
             current_list = getattr(self, key)
             for item in items:
-                if item and item.strip() and item.strip().lower() not in [c.lower() for c in current_list]:
-                    current_list.append(item.strip())
+                if isinstance(item, dict):
+                    item_str = str(item.get("name", item.get("entity", list(item.values())[0] if item.values() else "")))
+                else:
+                    item_str = str(item)
+
+                cleaned_item = item_str.strip()
+                if cleaned_item and cleaned_item.lower() not in [c.lower() for c in current_list]:
+                    current_list.append(cleaned_item)
 
 
 @dataclass

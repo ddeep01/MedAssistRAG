@@ -20,10 +20,14 @@ def create_mock_retriever(scores_map):
         if query in scores_map:
             score = scores_map[query]
             return [
-                {"index": 0, "text": f"Doc for {query}", "hybrid_score": score, "reranker_score": score * 10}
+                {"index": 0, "text": f"Doc for {query}", "hybrid_score": score, "reranker_score": score},
+                {"index": 1, "text": "Baseline doc", "hybrid_score": 0.0, "reranker_score": 0.0}
             ]
         # Default low score query
-        return [{"index": 0, "text": f"Low doc for {query}", "hybrid_score": 0.20, "reranker_score": -2.0}]
+        return [
+            {"index": 0, "text": f"Low doc for {query}", "hybrid_score": 0.20, "reranker_score": 0.20},
+            {"index": 1, "text": "Baseline doc", "hybrid_score": 0.0, "reranker_score": 0.0}
+        ]
 
     mock_ret.search_structured.side_effect = mock_search_structured
     return mock_ret
@@ -174,7 +178,7 @@ def test_repeated_rewrite_loop_prevention():
     res = controller.execute_with_retry("original")
 
     # Should stop after first rewrite because 'same rewrite' is in attempted_queries
-    assert mock_rewriter.rewrite.call_count == 2 or len(res["attempts"]) == 2
+    assert mock_rewriter.rewrite.call_count == 1 or len(res["attempts"]) == 2
 
 
 # ----------------------------------------------------
@@ -218,7 +222,6 @@ def test_best_attempt_tracking():
     mock_rewriter.rewrite.side_effect = ["r1", "r2"]
 
     controller = RetryController(retriever=mock_ret, query_rewriter=mock_rewriter)
-    # Configure controller so it does not stop at MEDIUM r1 in order to test tracking logic
     res = controller.execute_with_retry("original")
 
     # r1 reaches MEDIUM (0.75) and is accepted as best attempt

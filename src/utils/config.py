@@ -8,6 +8,7 @@ DEFAULT_CONFIDENCE_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "confidence.y
 DEFAULT_RETRY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retry.yaml")
 DEFAULT_MEMORY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "memory.yaml")
 DEFAULT_SAFETY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "safety.yaml")
+DEFAULT_CITATIONS_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "citations.yaml")
 
 DEFAULT_RETRIEVAL_CONFIG = {
     "retrieval": {
@@ -78,6 +79,14 @@ DEFAULT_SAFETY_CONFIG = {
             "medium": "CREATE_TICKET",
             "high": "SAFETY_WARNING"
         }
+    }
+}
+
+DEFAULT_CITATIONS_CONFIG = {
+    "citations": {
+        "enabled": True,
+        "max_evidence_chunks": 5,
+        "strip_invalid_citations": True
     }
 }
 
@@ -165,3 +174,20 @@ def load_safety_config(config_path=None):
             print(f"[Warning] Failed to load safety config from {config_path}: {e}. Using defaults.")
 
     return DEFAULT_SAFETY_CONFIG
+
+
+def load_citations_config(config_path=None):
+    """Loads citations configuration from YAML file or returns defaults."""
+    if config_path is None:
+        config_path = DEFAULT_CITATIONS_CONFIG_PATH
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                if config:
+                    return config
+        except Exception as e:
+            print(f"[Warning] Failed to load citations config from {config_path}: {e}. Using defaults.")
+
+    return DEFAULT_CITATIONS_CONFIG

@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "ticket_id": "TICKET-723CAF16",
+    "conversation_id": "23e35796-ef70-44f8-b281-fe7459d52d51",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-20T18:46:03.965166"
+  },
+  {
+    "ticket_id": "TICKET-3052F37B",
+    "conversation_id": "50f21447-7f7a-4391-b21c-8787d9d405f1",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-20T18:47:23.933871"
+  },
+  {
+    "ticket_id": "TICKET-B98CE426",
+    "conversation_id": "2b35cfc2-a132-462e-876e-462b7f08a660",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-20T18:50:49.690680"
+  }
+]

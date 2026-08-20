@@ -93,7 +93,7 @@ class LLM:
     # ========================================================
     # Medical Generation
     # ========================================================
-    def generate(self, question, context):
+    def generate(self, question, context=""):
 
         prompt = f"""### Instruction:
 You are a medical assistant.
@@ -104,6 +104,31 @@ If the answer cannot be found in the context, say "I don't know."
 
 ### Context:
 {context}
+
+### Question:
+{question}
+
+### Answer:
+"""
+        return self.generate_raw(prompt)
+
+    # ========================================================
+    # Medical Generation with Citation Attribution
+    # ========================================================
+    def generate_with_evidence(self, question, evidence_context_str):
+        prompt = f"""### Instruction:
+You are a medical assistant with citation capabilities.
+
+Use ONLY the provided medical evidence to answer the user's question.
+
+Rules:
+1. Cite factual statements using the exact evidence IDs provided (e.g. [E1], [E2]).
+2. Cite ONLY evidence IDs explicitly provided in the context.
+3. Do NOT invent citations, sources, URLs, or fake evidence IDs (e.g. do not cite [E99]).
+4. If the answer cannot be found in the evidence, say "I don't know."
+
+### Context:
+{evidence_context_str}
 
 ### Question:
 {question}

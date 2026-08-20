@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from src.generator.llm import LLM
 from src.tools.executor import execute_tool
@@ -10,6 +10,7 @@ from src.memory.memory_manager import MemoryManager
 from src.safety.risk_classifier import RiskClassifier
 from src.safety.safety_policy import SafetyPolicy, SafetyAction, RiskLevel
 from src.safety.ticket_manager import TicketManager
+from src.citations.citation_manager import CitationManager
 
 logger = logging.getLogger("MedAssistRAG.Pipeline")
 
@@ -41,6 +42,7 @@ class RAGPipeline:
         ticket_manager: Optional[TicketManager] = None,
         retry_controller: Optional[RetryController] = None,
         query_rewriter: Optional[QueryRewriter] = None,
+        citation_manager: Optional[CitationManager] = None,
     ):
         self._llm = llm
         self._retry_controller = retry_controller
@@ -48,6 +50,7 @@ class RAGPipeline:
         self.memory_manager = memory_manager or MemoryManager(llm=self._llm)
         self.risk_classifier = risk_classifier or RiskClassifier(llm=self._llm)
         self.ticket_manager = ticket_manager or TicketManager()
+        self.citation_manager = citation_manager or CitationManager()
 
     @property
     def llm(self) -> LLM:
@@ -69,8 +72,8 @@ class RAGPipeline:
 
     def query(self, query: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Executes Medical Risk Classification -> Memory-Aware RAG Pipeline.
-        Classifies risk into LOW (RAG), MEDIUM (Ticket), or HIGH (Safety Warning).
+        Executes Medical Risk Classification -> Memory-Aware RAG Pipeline with Citation Attribution.
+        Classifies risk into LOW (RAG + Citations), MEDIUM (Ticket), or HIGH (Safety Warning).
         """
         # 1. Initialize or resolve conversation_id
         cid = self.memory_manager.create_conversation(conversation_id)
@@ -103,6 +106,7 @@ class RAGPipeline:
                 "action": action.value if hasattr(action, "value") else str(action),
                 "answer": answer,
                 "sources": [],
+                "citations": [],
                 "confidence": 0.0,
                 "level": "N/A",
                 "ticket": None,
@@ -132,6 +136,7 @@ class RAGPipeline:
                 "action": action.value if hasattr(action, "value") else str(action),
                 "answer": answer,
                 "sources": [],
+                "citations": [],
                 "confidence": 1.0,
                 "level": "N/A",
                 "ticket": ticket,
@@ -164,6 +169,7 @@ class RAGPipeline:
 
         # 7. Execute Tool & Self-Correction Retry Controller
         retry_state = None
+        raw_candidates: List[Dict[str, Any]] = []
 
         if tool_name in ["SearchKB", "MedicalDisclaimerTool"]:
             target_query = tool_args.get("query", standalone_query)
@@ -171,7 +177,8 @@ class RAGPipeline:
                 query=target_query,
                 conversation_context=prior_memory_context
             )
-            sources = [c["text"] for c in retry_state["best_results"] if "text" in c]
+            raw_candidates = retry_state.get("best_results", [])
+            sources = [c["text"] for c in raw_candidates if "text" in c]
             confidence_info = retry_state["confidence_info"]
         elif tool_name == "CreateTicket":
             tool_output = execute_tool("CreateTicket", tool_args)
@@ -191,34 +198,36 @@ class RAGPipeline:
                 "needs_query_rewrite": True
             }
 
-        # 8. Generate answer / abstain
-        if tool_name == "SearchKB":
+        # 8. Generate Answer with Citation Attribution
+        validation_res = None
+        citations = []
+
+        if tool_name in ["SearchKB", "MedicalDisclaimerTool"]:
             if confidence_info.get("level") == "LOW" or (retry_state and retry_state.get("needs_abstention")):
                 answer = "Insufficient evidence found to answer the query with confidence after self-correction retry attempts."
-            elif not sources:
+            elif not raw_candidates:
                 answer = "No relevant information found."
             else:
-                context = "\n".join(sources)
-                answer = self.llm.generate(standalone_query, context)
+                # Create evidence objects with temporary IDs (E1, E2, ...)
+                evidence_objects = self.citation_manager.create_evidence_objects(raw_candidates)
+                evidence_ctx_str = self.citation_manager.build_evidence_context(evidence_objects)
+
+                # Generate draft response from LLM with [E#] citation tags
+                raw_draft_answer = self.llm.generate_with_evidence(standalone_query, evidence_ctx_str)
+
+                # Validate citations, replace [E1] -> [1], consolidate sources, append Source List
+                validation_res = self.citation_manager.validate_and_format_citations(raw_draft_answer, evidence_objects)
+                answer = validation_res.formatted_text
+                citations = [c.to_dict() for c in validation_res.valid_citations]
+
+                if tool_name == "MedicalDisclaimerTool":
+                    disclaimer_info = execute_tool("MedicalDisclaimerTool", tool_args)
+                    disclaimer = disclaimer_info.get("disclaimer", "") if isinstance(disclaimer_info, dict) else ""
+                    if disclaimer:
+                        answer += f"\n\n{disclaimer}"
 
         elif tool_name == "CreateTicket":
             answer = f"Your issue has been registered: {tool_args.get('issue', 'Unknown')}"
-
-        elif tool_name == "MedicalDisclaimerTool":
-            if confidence_info.get("level") == "LOW" or (retry_state and retry_state.get("needs_abstention")):
-                answer = "Insufficient medical evidence found to answer the query with confidence after self-correction retry attempts."
-            elif not sources:
-                answer = "No relevant medical information found."
-            else:
-                context = "\n".join(sources)
-                base_answer = self.llm.generate(standalone_query, context)
-                disclaimer_info = execute_tool("MedicalDisclaimerTool", tool_args)
-                disclaimer = disclaimer_info.get("disclaimer", "") if isinstance(disclaimer_info, dict) else ""
-                answer = (
-                    base_answer
-                    + "\n\n"
-                    + disclaimer
-                )
         else:
             answer = "Something went wrong."
 
@@ -233,6 +242,8 @@ class RAGPipeline:
             "action": action.value if hasattr(action, "value") else str(action),
             "answer": answer,
             "sources": sources,
+            "citations": citations,
+            "validation_result": validation_res.to_dict() if validation_res else None,
             "confidence": confidence_info.get("confidence", 0.0),
             "level": confidence_info.get("level", "LOW"),
             "ticket": None,
@@ -246,7 +257,7 @@ class RAGPipeline:
 
 def main():
     rag = RAGPipeline()
-    print("[SAFETY] Medical Safety & Risk Classification RAG ready (type 'exit' or 'clear')\n")
+    print("[CITATIONS] Memory-Aware & Citation-Attributed RAG ready (type 'exit' or 'clear')\n")
 
     current_cid = rag.memory_manager.create_conversation()
 
@@ -265,7 +276,6 @@ def main():
         if result['action'] == "RAG":
             print(f"[REWRITE] Standalone Query: '{result['standalone_query']}'")
             print(f"[CONFIDENCE] Level: {result['level']} ({result['confidence']})")
-            print("[SOURCES]:", result["sources"])
         elif result['ticket']:
             print(f"[TICKET] Support Ticket Created: {result['ticket']['ticket_id']}")
         print("\n[RESPONSE]:\n", result["answer"])
