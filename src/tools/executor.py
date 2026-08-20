@@ -7,12 +7,16 @@ retriever = Retriever()
 
 def execute_tool(tool_name, args):
     if tool_name == "SearchKB":
-        return retriever.search(args["query"], k=3)
+        query = args.get("query", "")
+        k = args.get("k", 3)
+        mode = args.get("mode", None)
+        return_structured = args.get("return_structured", False)
+        return retriever.search(query, k=k, mode=mode, return_structured=return_structured)
 
     elif tool_name == "CreateTicket":
         return {
             "status": "ticket_created",
-            "issue": args["issue"]
+            "issue": args.get("issue", "")
         }
     elif tool_name == "MedicalDisclaimerTool":
         return {

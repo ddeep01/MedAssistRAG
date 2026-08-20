@@ -1,0 +1,6 @@
+Experiment,Recall@5,Recall@10,Recall@20,Precision@5,MRR,NDCG@10,Avg Latency (ms)
+EXP 1: Dense FAISS,1.0,1.0,1.0,0.35,1.0,1.4405,122.57
+EXP 2: FAISS + Cross-Encoder,1.0,1.0,1.0,0.35,1.0,1.4732,599.73
+EXP 3: BM25,1.0,1.0,1.0,0.35,1.0,1.4405,1.42
+EXP 4: FAISS + BM25 (Fusion),1.0,1.0,1.0,0.35,1.0,1.4405,246.55
+EXP 5: FAISS + BM25 + Cross-Encoder,1.0,1.0,1.0,0.35,1.0,1.4732,1447.58

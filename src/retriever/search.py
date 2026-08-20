@@ -1,71 +1,50 @@
-
-
-import faiss
-import pickle
-from sentence_transformers import SentenceTransformer
-
-
-class Retriever:
-    def __init__(self):
-        # Load FAISS index
-        #self.index = faiss.read_index("data/embeddings/faiss_index.bin")
-        self.index = faiss.read_index("data/embeddings/faiss_index_after_retriever_finetuning.bin")
-
-        # Load stored texts
-        with open("data/embeddings/texts.pkl", "rb") as f:
-            self.texts = pickle.load(f)
-
-        # Load embedding model
-        #self.model = SentenceTransformer("BAAI/bge-small-en")
-        self.model = SentenceTransformer("models/retriever_finetuned")
-
-    def search(self, query, k=5):
-        # Encode query
-        q_emb = self.model.encode([query], normalize_embeddings=True)
-
-        # Search FAISS
-        D, I = self.index.search(q_emb, k)
-
-        # Return top-k documents
-        return [self.texts[i] for i in I[0]]
-
-
-'''
-import faiss
-import pickle
-from sentence_transformers import SentenceTransformer
-
-from src.reranker.reranker import Reranker  # 🔥 NEW
+from typing import List, Dict, Any, Union, Optional
+from src.retriever.hybrid_retriever import HybridRetriever
+from src.utils.config import load_retrieval_config
 
 
 class Retriever:
-    def __init__(self):
-        # Load FAISS index
-        self.index = faiss.read_index("data/embeddings/faiss_index_after_retriever_finetuning.bin")
+    """
+    Retriever facade that wraps HybridRetriever and preserves
+    backward compatibility with legacy callers expecting list of text strings.
+    """
 
-        # Load stored texts
-        with open("data/embeddings/texts.pkl", "rb") as f:
-            self.texts = pickle.load(f)
+    def __init__(self, config_path: Optional[str] = None):
+        self.config = load_retrieval_config(config_path)
+        self.hybrid_retriever = HybridRetriever(config=self.config)
 
-        # Load embedding model (your fine-tuned one)
-        self.model = SentenceTransformer("models/retriever_finetuned")
+    def search(
+        self,
+        query: str,
+        k: int = 5,
+        mode: Optional[str] = None,
+        alpha: Optional[float] = None,
+        return_structured: bool = False
+    ) -> Union[List[str], List[Dict[str, Any]]]:
+        """
+        Searches the knowledge base using the configured retrieval mode (dense, bm25, hybrid).
 
-        # 🔥 Initialize reranker
-        self.reranker = Reranker()
+        If return_structured is False (default): Returns List[str] (texts).
+        If return_structured is True: Returns List[Dict] with scores & metadata.
+        """
+        results = self.hybrid_retriever.search(
+            query=query,
+            mode=mode,
+            alpha=alpha,
+            final_top_k=k
+        )
 
-    def search(self, query, k=30):
-        # =========================
-        # STEP 1: RETRIEVAL
-        # =========================
-        q_emb = self.model.encode([query], normalize_embeddings=True)
-        D, I = self.index.search(q_emb, k)
+        if return_structured:
+            return results
 
-        candidates = [self.texts[i] for i in I[0]]
+        return [item["text"] for item in results]
 
-        # =========================
-        # STEP 2: RERANKING
-        # =========================
-        reranked = self.reranker.rerank(query, candidates, top_n=5)
-
-        return reranked
-'''
+    def search_structured(
+        self,
+        query: str,
+        k: int = 5,
+        mode: Optional[str] = None,
+        alpha: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """Direct helper to get structured results with detailed scores."""
+        return self.search(query=query, k=k, mode=mode, alpha=alpha, return_structured=True)

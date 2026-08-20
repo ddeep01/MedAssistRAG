@@ -11,3 +11,5 @@ pandas
 numpy
 tqdm
 streamlit
+rank-bm25
+pyyaml

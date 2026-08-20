@@ -1,0 +1,25 @@
+# Retrieval Configuration for MedAssistRAG
+
+retrieval:
+  mode: "hybrid"  # Options: dense, bm25, hybrid
+  dense_top_k: 20
+  bm25_top_k: 20
+  candidate_k: 20
+  final_top_k: 5
+  alpha: 0.5  # 0.5 = 50% dense + 50% BM25 keyword
+
+  # File Paths
+  faiss_index_path: "data/embeddings/faiss_index_after_retriever_finetuning.bin"
+  faiss_index_fallback_path: "data/embeddings/faiss_index.bin"
+  texts_path: "data/embeddings/texts.pkl"
+  bm25_index_path: "data/embeddings/bm25_index.pkl"
+
+  # Models
+  embedding_model: "BAAI/bge-small-en"
+  finetuned_embedding_model: "models/retriever_finetuned"
+
+reranker:
+  enabled: true
+  model_path: "models/reranker_finetuned"
+  fallback_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  top_n: 5
