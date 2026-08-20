@@ -1,0 +1,9 @@
+# Retry and Query Rewriting Configuration for MedAssistRAG
+
+retry:
+  enabled: true
+  max_retries: 2
+  min_confidence_improvement: 0.05
+
+query_rewriting:
+  enabled: true
