@@ -1,26 +1,68 @@
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from src.utils.config import load_retry_config
 
 logger = logging.getLogger("MedAssistRAG.QueryRewriter")
 
 
-def build_rewrite_prompt(query: str, conversation_context: Optional[str] = None) -> str:
-    """Constructs prompt for medical query rewriting."""
-    ctx_str = conversation_context if conversation_context and conversation_context.strip() else "None"
+def format_memory_context(conversation_context: Any) -> str:
+    """Formats string, dict, or MemoryContext into clean context string for LLM prompt."""
+    if not conversation_context:
+        return "None"
+
+    if isinstance(conversation_context, str):
+        return conversation_context.strip() if conversation_context.strip() else "None"
+
+    # If MemoryContext object or dict
+    if hasattr(conversation_context, "to_dict"):
+        ctx_dict = conversation_context.to_dict()
+    elif isinstance(conversation_context, dict):
+        ctx_dict = conversation_context
+    else:
+        return str(conversation_context)
+
+    lines = []
+    summary = ctx_dict.get("summary", "")
+    if summary:
+        lines.append(f"Summary: {summary}")
+
+    entities = ctx_dict.get("entities", {})
+    if entities:
+        ent_strs = []
+        for category, items in entities.items():
+            if items:
+                ent_strs.append(f"{category}: {', '.join(items)}")
+        if ent_strs:
+            lines.append("Tracked Medical Entities: " + "; ".join(ent_strs))
+
+    recent = ctx_dict.get("recent_messages", [])
+    if recent:
+        lines.append("Recent Conversation:")
+        for m in recent:
+            role = m.get("role", "user").capitalize()
+            content = m.get("content", "")
+            lines.append(f"  {role}: {content}")
+
+    return "\n".join(lines) if lines else "None"
+
+
+def build_rewrite_prompt(query: str, conversation_context: Any = None) -> str:
+    """Constructs prompt for medical query rewriting with memory context."""
+    ctx_str = format_memory_context(conversation_context)
     return f"""You are a medical search query rewriting component.
 
 Rewrite the user's query into a clear, standalone query that can be used to search a medical knowledge base.
 
 Rules:
 1. Preserve the user's original intent.
-2. Resolve ambiguous references (e.g. "it", "this", "that", "they", "high BP") using conversation context when available.
+2. Resolve ambiguous references (e.g. "it", "this", "that", "they", "high BP", "the medication") using conversation context when available.
 3. Include important medical entities when known.
-4. Do not answer the question.
-5. Do not add new medical information or invent facts.
-6. Return ONLY the rewritten query text.
+4. If multiple entities are mentioned and the question is ambiguous, do not force an incorrect single entity.
+5. Do not answer the question.
+6. Do not add new medical information or invent facts.
+7. Return ONLY the rewritten query text.
 
 Conversation context:
 {ctx_str}
@@ -95,7 +137,7 @@ class QueryRewriter:
     def rewrite(
         self,
         query: str,
-        conversation_context: Optional[str] = None,
+        conversation_context: Any = None,
         retrieval_results: Optional[List[Dict[str, Any]]] = None,
         confidence: Optional[float] = None
     ) -> str:

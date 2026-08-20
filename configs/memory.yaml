@@ -1,0 +1,14 @@
+# Memory Configuration for MedAssistRAG
+
+memory:
+  enabled: true
+  
+  short_term:
+    max_messages: 10
+
+  entities:
+    enabled: true
+
+  summary:
+    enabled: true
+    trigger_messages: 10

@@ -6,6 +6,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 DEFAULT_RETRIEVAL_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retrieval.yaml")
 DEFAULT_CONFIDENCE_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "confidence.yaml")
 DEFAULT_RETRY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retry.yaml")
+DEFAULT_MEMORY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "memory.yaml")
 
 DEFAULT_RETRIEVAL_CONFIG = {
     "retrieval": {
@@ -48,6 +49,22 @@ DEFAULT_RETRY_CONFIG = {
     },
     "query_rewriting": {
         "enabled": True
+    }
+}
+
+DEFAULT_MEMORY_CONFIG = {
+    "memory": {
+        "enabled": True,
+        "short_term": {
+            "max_messages": 10
+        },
+        "entities": {
+            "enabled": True
+        },
+        "summary": {
+            "enabled": True,
+            "trigger_messages": 10
+        }
     }
 }
 
@@ -101,3 +118,20 @@ def load_retry_config(config_path=None):
             print(f"[Warning] Failed to load retry config from {config_path}: {e}. Using defaults.")
 
     return DEFAULT_RETRY_CONFIG
+
+
+def load_memory_config(config_path=None):
+    """Loads memory configuration from YAML file or returns defaults."""
+    if config_path is None:
+        config_path = DEFAULT_MEMORY_CONFIG_PATH
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                if config:
+                    return config
+        except Exception as e:
+            print(f"[Warning] Failed to load memory config from {config_path}: {e}. Using defaults.")
+
+    return DEFAULT_MEMORY_CONFIG
