@@ -1,13 +1,12 @@
 import os
 import yaml
 
-DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "configs",
-    "retrieval.yaml"
-)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-DEFAULT_CONFIG = {
+DEFAULT_RETRIEVAL_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retrieval.yaml")
+DEFAULT_CONFIDENCE_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "confidence.yaml")
+
+DEFAULT_RETRIEVAL_CONFIG = {
     "retrieval": {
         "mode": "hybrid",
         "dense_top_k": 20,
@@ -30,11 +29,21 @@ DEFAULT_CONFIG = {
     }
 }
 
+DEFAULT_CONFIDENCE_CONFIG = {
+    "confidence": {
+        "retrieval_weight": 0.5,
+        "reranker_weight": 0.5,
+        "high_threshold": 0.80,
+        "medium_threshold": 0.60,
+        "rank_weights": [0.5, 0.3, 0.2]
+    }
+}
+
 
 def load_retrieval_config(config_path=None):
     """Loads retrieval configuration from YAML file or returns defaults."""
     if config_path is None:
-        config_path = DEFAULT_CONFIG_PATH
+        config_path = DEFAULT_RETRIEVAL_CONFIG_PATH
 
     if os.path.exists(config_path):
         try:
@@ -45,4 +54,21 @@ def load_retrieval_config(config_path=None):
         except Exception as e:
             print(f"[Warning] Failed to load config from {config_path}: {e}. Using defaults.")
 
-    return DEFAULT_CONFIG
+    return DEFAULT_RETRIEVAL_CONFIG
+
+
+def load_confidence_config(config_path=None):
+    """Loads confidence configuration from YAML file or returns defaults."""
+    if config_path is None:
+        config_path = DEFAULT_CONFIDENCE_CONFIG_PATH
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                if config:
+                    return config
+        except Exception as e:
+            print(f"[Warning] Failed to load confidence config from {config_path}: {e}. Using defaults.")
+
+    return DEFAULT_CONFIDENCE_CONFIG

@@ -1,6 +1,6 @@
+import json
 from src.generator.llm import LLM
 from src.tools.executor import execute_tool
-import json
 
 
 def tool_prompt(query):
@@ -33,41 +33,82 @@ class RAGPipeline:
 
         try:
             decision = json.loads(decision_raw)
-        except:
+        except Exception:
             decision = {"tool": "SearchKB", "args": {"query": query}}
 
         # =========================
         # STEP 2: EXECUTE TOOL
         # =========================
         try:
-            result = execute_tool(decision["tool"], decision["args"])
-        except:
-            result = []
+            tool_output = execute_tool(decision["tool"], decision["args"])
+        except Exception:
+            tool_output = []
+
+        # Process tool output structure
+        if isinstance(tool_output, dict):
+            sources = tool_output.get("sources", [])
+            confidence_info = tool_output.get("confidence", {
+                "confidence": 0.0,
+                "level": "LOW",
+                "needs_retry": True,
+                "needs_query_rewrite": True
+            })
+        elif isinstance(tool_output, list):
+            sources = tool_output
+            confidence_info = {
+                "confidence": 0.0,
+                "level": "LOW",
+                "needs_retry": True,
+                "needs_query_rewrite": True
+            }
+        else:
+            sources = [str(tool_output)]
+            confidence_info = {
+                "confidence": 0.0,
+                "level": "LOW",
+                "needs_retry": True,
+                "needs_query_rewrite": True
+            }
 
         # =========================
-        # STEP 3: GENERATE ANSWER
+        # STEP 3: CONFIDENCE DECISION & GENERATION
         # =========================
         if decision["tool"] == "SearchKB":
-            if not result:
+            if confidence_info.get("level") == "LOW" or confidence_info.get("needs_retry"):
+                answer = "Insufficient evidence found to answer the query with confidence."
+            elif not sources:
                 answer = "No relevant information found."
             else:
-                context = "\n".join(result)
+                context = "\n".join(sources)
                 answer = self.llm.generate(query, context)
 
         elif decision["tool"] == "CreateTicket":
-            answer = f"Your issue has been registered: {result.get('issue', 'Unknown')}"
-            context = ""
+            answer = f"Your issue has been registered: {tool_output.get('issue', 'Unknown')}"
+            sources = []
+            confidence_info = {
+                "confidence": 1.0,
+                "level": "HIGH",
+                "needs_retry": False,
+                "needs_query_rewrite": False
+            }
 
         elif decision["tool"] == "MedicalDisclaimerTool":
-            # First search KB normally
-            kb_result = execute_tool("SearchKB", {"query": query})
+            # Search KB with confidence checking
+            kb_output = execute_tool("SearchKB", {"query": query})
+            if isinstance(kb_output, dict):
+                sources = kb_output.get("sources", [])
+                confidence_info = kb_output.get("confidence", confidence_info)
+            else:
+                sources = kb_output if isinstance(kb_output, list) else [str(kb_output)]
 
-            if not kb_result:
+            if confidence_info.get("level") == "LOW" or confidence_info.get("needs_retry"):
+                answer = "Insufficient medical evidence found to answer the query with confidence."
+            elif not sources:
                 answer = "No relevant medical information found."
             else:
-                context = "\n".join(kb_result)
+                context = "\n".join(sources)
                 base_answer = self.llm.generate(query, context)
-                disclaimer = result["disclaimer"]
+                disclaimer = tool_output.get("disclaimer", "")
                 answer = (
                     base_answer
                     + "\n\n"
@@ -75,29 +116,37 @@ class RAGPipeline:
                 )
         else:
             answer = "Something went wrong."
-            context = ""
+            sources = []
+            confidence_info = {
+                "confidence": 0.0,
+                "level": "LOW",
+                "needs_retry": True,
+                "needs_query_rewrite": True
+            }
 
         return {
             "answer": answer,
-            "sources": result if isinstance(result, list) else [str(result)]
+            "sources": sources,
+            "confidence": confidence_info.get("confidence", 0.0),
+            "level": confidence_info.get("level", "LOW"),
+            "needs_retry": confidence_info.get("needs_retry", True),
+            "needs_query_rewrite": confidence_info.get("needs_query_rewrite", True),
+            "confidence_details": confidence_info
         }
 
 
-# Optional CLI (keep this if you want manual testing)
 def main():
     rag = RAGPipeline()
-
-    print("🧠 Tool-enabled RAG ready (type 'exit')\n")
+    print("🧠 Confidence-Aware RAG ready (type 'exit')\n")
 
     while True:
         query = input("Ask question: ")
-
         if query.lower() in ["exit", "quit"]:
             break
 
         result = rag.query(query)
-
-        print("\n📄 Sources:", result["sources"])
+        print(f"\n📊 Confidence Level: {result['level']} ({result['confidence']})")
+        print("📄 Sources:", result["sources"])
         print("\n💡 Answer:\n", result["answer"])
         print("-" * 50)
 

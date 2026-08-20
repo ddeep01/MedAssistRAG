@@ -1,0 +1,13 @@
+# Confidence Scorer Configuration for MedAssistRAG
+
+confidence:
+  retrieval_weight: 0.5
+  reranker_weight: 0.5
+
+  high_threshold: 0.80
+  medium_threshold: 0.60
+
+  rank_weights:
+    - 0.5
+    - 0.3
+    - 0.2
