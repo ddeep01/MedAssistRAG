@@ -7,6 +7,7 @@ DEFAULT_RETRIEVAL_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retrieval.yam
 DEFAULT_CONFIDENCE_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "confidence.yaml")
 DEFAULT_RETRY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retry.yaml")
 DEFAULT_MEMORY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "memory.yaml")
+DEFAULT_SAFETY_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "safety.yaml")
 
 DEFAULT_RETRIEVAL_CONFIG = {
     "retrieval": {
@@ -64,6 +65,18 @@ DEFAULT_MEMORY_CONFIG = {
         "summary": {
             "enabled": True,
             "trigger_messages": 10
+        }
+    }
+}
+
+DEFAULT_SAFETY_CONFIG = {
+    "safety": {
+        "enabled": True,
+        "fallback_risk_level": "HIGH",
+        "risk_levels": {
+            "low": "RAG",
+            "medium": "CREATE_TICKET",
+            "high": "SAFETY_WARNING"
         }
     }
 }
@@ -135,3 +148,20 @@ def load_memory_config(config_path=None):
             print(f"[Warning] Failed to load memory config from {config_path}: {e}. Using defaults.")
 
     return DEFAULT_MEMORY_CONFIG
+
+
+def load_safety_config(config_path=None):
+    """Loads safety configuration from YAML file or returns defaults."""
+    if config_path is None:
+        config_path = DEFAULT_SAFETY_CONFIG_PATH
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                if config:
+                    return config
+        except Exception as e:
+            print(f"[Warning] Failed to load safety config from {config_path}: {e}. Using defaults.")
+
+    return DEFAULT_SAFETY_CONFIG

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Optional, Dict, Any
 
 from src.generator.llm import LLM
@@ -6,6 +7,11 @@ from src.tools.executor import execute_tool
 from src.retry.retry_controller import RetryController
 from src.query.query_rewriter import QueryRewriter
 from src.memory.memory_manager import MemoryManager
+from src.safety.risk_classifier import RiskClassifier
+from src.safety.safety_policy import SafetyPolicy, SafetyAction, RiskLevel
+from src.safety.ticket_manager import TicketManager
+
+logger = logging.getLogger("MedAssistRAG.Pipeline")
 
 
 def tool_prompt(query: str) -> str:
@@ -27,11 +33,21 @@ Query: {query}
 
 
 class RAGPipeline:
-    def __init__(self, llm: Optional[LLM] = None, memory_manager: Optional[MemoryManager] = None):
+    def __init__(
+        self,
+        llm: Optional[LLM] = None,
+        memory_manager: Optional[MemoryManager] = None,
+        risk_classifier: Optional[RiskClassifier] = None,
+        ticket_manager: Optional[TicketManager] = None,
+        retry_controller: Optional[RetryController] = None,
+        query_rewriter: Optional[QueryRewriter] = None,
+    ):
         self._llm = llm
-        self.retry_controller = RetryController()
-        self.query_rewriter = QueryRewriter(llm=self._llm)
+        self._retry_controller = retry_controller
+        self._query_rewriter = query_rewriter
         self.memory_manager = memory_manager or MemoryManager(llm=self._llm)
+        self.risk_classifier = risk_classifier or RiskClassifier(llm=self._llm)
+        self.ticket_manager = ticket_manager or TicketManager()
 
     @property
     def llm(self) -> LLM:
@@ -39,11 +55,22 @@ class RAGPipeline:
             self._llm = LLM()
         return self._llm
 
+    @property
+    def retry_controller(self) -> RetryController:
+        if self._retry_controller is None:
+            self._retry_controller = RetryController()
+        return self._retry_controller
+
+    @property
+    def query_rewriter(self) -> QueryRewriter:
+        if self._query_rewriter is None:
+            self._query_rewriter = QueryRewriter(llm=self._llm)
+        return self._query_rewriter
+
     def query(self, query: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Executes conversational memory-aware RAG pipeline.
-        Medical answers strictly come from retrieved RAG evidence. Memory is used ONLY
-        for conversation continuity and query rewriting.
+        Executes Medical Risk Classification -> Memory-Aware RAG Pipeline.
+        Classifies risk into LOW (RAG), MEDIUM (Ticket), or HIGH (Safety Warning).
         """
         # 1. Initialize or resolve conversation_id
         cid = self.memory_manager.create_conversation(conversation_id)
@@ -51,18 +78,80 @@ class RAGPipeline:
         # 2. Get existing memory context prior to current turn
         prior_memory_context = self.memory_manager.get_context(cid)
 
-        # 3. Record user message in memory
+        # 3. Perform LLM Risk Classification BEFORE running SearchKB/QueryRewriter
+        risk_res = self.risk_classifier.classify(query, prior_memory_context)
+        risk_level = risk_res["risk_level"]
+        action = risk_res["action"]
+
+        logger.info(f"----------------------------------------")
+        logger.info(f"Risk Classification | Level: {risk_level} | Action: {action}")
+        logger.info(f"----------------------------------------")
+
+        # ====================================================
+        # HIGH RISK: CONTROLLED EMERGENCY SAFETY WARNING
+        # ====================================================
+        if action == SafetyAction.SAFETY_WARNING:
+            self.memory_manager.add_message(cid, "user", query)
+            answer = SafetyPolicy.get_high_response()
+            self.memory_manager.add_message(cid, "assistant", answer)
+
+            return {
+                "conversation_id": cid,
+                "query": query,
+                "standalone_query": query,
+                "risk_level": risk_level,
+                "action": action.value if hasattr(action, "value") else str(action),
+                "answer": answer,
+                "sources": [],
+                "confidence": 0.0,
+                "level": "N/A",
+                "ticket": None,
+                "retry_state": None,
+                "memory_context": self.memory_manager.get_context(cid).to_dict()
+            }
+
+        # ====================================================
+        # MEDIUM RISK: CREATE SUPPORT TICKET & REFERRAL
+        # ====================================================
+        elif action == SafetyAction.CREATE_TICKET:
+            self.memory_manager.add_message(cid, "user", query)
+            try:
+                ticket = self.ticket_manager.create_ticket(cid, query, risk_level="MEDIUM")
+            except Exception as e:
+                logger.error(f"[RAGPipeline] Ticket creation failed: {e}")
+                ticket = None
+
+            answer = SafetyPolicy.get_medium_response(ticket)
+            self.memory_manager.add_message(cid, "assistant", answer)
+
+            return {
+                "conversation_id": cid,
+                "query": query,
+                "standalone_query": query,
+                "risk_level": risk_level,
+                "action": action.value if hasattr(action, "value") else str(action),
+                "answer": answer,
+                "sources": [],
+                "confidence": 1.0,
+                "level": "N/A",
+                "ticket": ticket,
+                "retry_state": None,
+                "memory_context": self.memory_manager.get_context(cid).to_dict()
+            }
+
+        # ====================================================
+        # LOW RISK: NORMAL MEMORY-AWARE RAG PIPELINE
+        # ====================================================
+        # 4. Record user message in memory
         self.memory_manager.add_message(cid, "user", query)
 
-        # 4. Generate standalone query if conversation context exists
+        # 5. Generate standalone query if conversation context exists
         if prior_memory_context.recent_messages or prior_memory_context.entities:
             standalone_query = self.query_rewriter.rewrite(query, prior_memory_context)
         else:
             standalone_query = query
 
-        # =========================
-        # STEP 5: TOOL DECISION
-        # =========================
+        # 6. Tool decision
         decision_raw = self.llm.generate_raw(tool_prompt(standalone_query))
 
         try:
@@ -73,9 +162,7 @@ class RAGPipeline:
         tool_name = decision.get("tool", "SearchKB")
         tool_args = decision.get("args", {"query": standalone_query})
 
-        # =========================
-        # STEP 6: EXECUTE TOOL & SELF-CORRECTION RETRY CONTROLLER
-        # =========================
+        # 7. Execute Tool & Self-Correction Retry Controller
         retry_state = None
 
         if tool_name in ["SearchKB", "MedicalDisclaimerTool"]:
@@ -104,9 +191,7 @@ class RAGPipeline:
                 "needs_query_rewrite": True
             }
 
-        # =========================
-        # STEP 7: GENERATE ANSWER / ABSTAIN
-        # =========================
+        # 8. Generate answer / abstain
         if tool_name == "SearchKB":
             if confidence_info.get("level") == "LOW" or (retry_state and retry_state.get("needs_abstention")):
                 answer = "Insufficient evidence found to answer the query with confidence after self-correction retry attempts."
@@ -137,17 +222,20 @@ class RAGPipeline:
         else:
             answer = "Something went wrong."
 
-        # 8. Record assistant response in memory
+        # 9. Record assistant response in memory
         self.memory_manager.add_message(cid, "assistant", answer)
 
         return {
             "conversation_id": cid,
             "query": query,
             "standalone_query": standalone_query,
+            "risk_level": risk_level,
+            "action": action.value if hasattr(action, "value") else str(action),
             "answer": answer,
             "sources": sources,
             "confidence": confidence_info.get("confidence", 0.0),
             "level": confidence_info.get("level", "LOW"),
+            "ticket": None,
             "needs_retry": confidence_info.get("needs_retry", True),
             "needs_query_rewrite": confidence_info.get("needs_query_rewrite", True),
             "confidence_details": confidence_info,
@@ -158,7 +246,7 @@ class RAGPipeline:
 
 def main():
     rag = RAGPipeline()
-    print("🧠 Conversational Memory-Aware RAG ready (type 'exit' or 'clear')\n")
+    print("[SAFETY] Medical Safety & Risk Classification RAG ready (type 'exit' or 'clear')\n")
 
     current_cid = rag.memory_manager.create_conversation()
 
@@ -173,10 +261,14 @@ def main():
             continue
 
         result = rag.query(query, conversation_id=current_cid)
-        print(f"\n🔄 Standalone Query: '{result['standalone_query']}'")
-        print(f"📊 Confidence Level: {result['level']} ({result['confidence']})")
-        print("📄 Sources:", result["sources"])
-        print("\n💡 Answer:\n", result["answer"])
+        print(f"\n[SAFETY] Risk Level: {result['risk_level']} -> Action: {result['action']}")
+        if result['action'] == "RAG":
+            print(f"[REWRITE] Standalone Query: '{result['standalone_query']}'")
+            print(f"[CONFIDENCE] Level: {result['level']} ({result['confidence']})")
+            print("[SOURCES]:", result["sources"])
+        elif result['ticket']:
+            print(f"[TICKET] Support Ticket Created: {result['ticket']['ticket_id']}")
+        print("\n[RESPONSE]:\n", result["answer"])
         print("-" * 50)
 
 

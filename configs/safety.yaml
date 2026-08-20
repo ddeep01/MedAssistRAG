@@ -1,0 +1,10 @@
+# Medical Safety & Risk Classification Configuration for MedAssistRAG
+
+safety:
+  enabled: true
+  fallback_risk_level: "HIGH"
+
+  risk_levels:
+    low: "RAG"
+    medium: "CREATE_TICKET"
+    high: "SAFETY_WARNING"
