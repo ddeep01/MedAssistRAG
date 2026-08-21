@@ -11,3 +11,7 @@ numpy
 tqdm
 rank-bm25
 pyyaml
+langchain-text-splitters
+nltk
+matplotlib
+pytest

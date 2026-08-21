@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Dict, Any, Optional
-from src.utils.config import load_confidence_config
+from src.config import load_confidence_config
 
 
 class ConfidenceLevel(str, Enum):

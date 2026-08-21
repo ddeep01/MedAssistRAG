@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Dict, Any, Optional
-from src.utils.config import load_safety_config
+from src.config import load_safety_config
 
 
 class RiskLevel(str, Enum):

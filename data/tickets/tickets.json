@@ -22,5 +22,85 @@
     "risk_level": "MEDIUM",
     "status": "OPEN",
     "created_at": "2026-08-20T18:50:49.690680"
+  },
+  {
+    "ticket_id": "TICKET-6B43944B",
+    "conversation_id": "c8d3c9df-6aec-474d-8a92-62a90a12ec15",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T17:28:22.051309"
+  },
+  {
+    "ticket_id": "TICKET-4960D75C",
+    "conversation_id": "f5d11ef9-3299-4235-9fa4-a9e0fde08749",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T17:33:24.060092"
+  },
+  {
+    "ticket_id": "TICKET-04B35C99",
+    "conversation_id": "126544ed-052f-4a4b-939b-af2d6a3db917",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T18:02:19.775670"
+  },
+  {
+    "ticket_id": "TICKET-323DE890",
+    "conversation_id": "6efed3b2-2673-432a-a85a-0eb47bbc9767",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T18:37:20.351733"
+  },
+  {
+    "ticket_id": "TICKET-15CCB7FD",
+    "conversation_id": "9069bf00-6711-4194-8dc1-3ae3b0d9bf75",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T18:41:44.134406"
+  },
+  {
+    "ticket_id": "TICKET-0E9EB085",
+    "conversation_id": "4da94512-6de8-4a01-90c7-418db2b0b0cd",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T18:46:19.892098"
+  },
+  {
+    "ticket_id": "TICKET-F795EAA2",
+    "conversation_id": "f70261b1-4af8-4df3-94de-70c3db16ccf1",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T18:55:42.731020"
+  },
+  {
+    "ticket_id": "TICKET-493FF3D4",
+    "conversation_id": "47a6da33-322f-411c-a2d7-a00f1b0dcde1",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T19:01:32.421230"
+  },
+  {
+    "ticket_id": "TICKET-E33B7FCC",
+    "conversation_id": "2eee9da0-e5d7-4b73-a6c3-6a117b7a37c6",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T19:06:48.132884"
+  },
+  {
+    "ticket_id": "TICKET-2823E473",
+    "conversation_id": "b7558223-b716-4743-aaeb-82c43bdffcd7",
+    "query": "I have had headaches for three weeks.",
+    "risk_level": "MEDIUM",
+    "status": "OPEN",
+    "created_at": "2026-08-21T19:18:37.161689"
   }
 ]

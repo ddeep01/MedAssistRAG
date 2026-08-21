@@ -1,17 +1,27 @@
 from src.pipeline.rag_pipeline import RAGPipeline
 
-rag = RAGPipeline()
 
-while True:
-    query = input("\nAsk medical question: ")
-    if query.lower() in ["exit", "quit"]:
-        break
+def main():
+    rag = RAGPipeline()
 
-    result = rag.query(query)
+    print("[MedAssistRAG Interactive Medical Assistant]")
+    print("Type 'exit' or 'quit' to stop.\n")
 
-    print("\n--- RETRIEVED CONTEXT ---")
-    for d in result["sources"]:
-        print("-", str(d)[:150])
+    while True:
+        query = input("Ask medical question: ")
+        if query.lower() in ["exit", "quit"]:
+            break
 
-    print("\n--- ANSWER ---")
-    print(result["answer"])
+        result = rag.query(query)
+
+        print("\n--- RETRIEVED CONTEXT ---")
+        for d in result["sources"]:
+            print("-", str(d)[:150])
+
+        print("\n--- ANSWER ---")
+        print(result["answer"])
+        print("-" * 50)
+
+
+if __name__ == "__main__":
+    main()

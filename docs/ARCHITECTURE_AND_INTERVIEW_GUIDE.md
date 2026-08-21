@@ -51,8 +51,9 @@ MedAssistRAG/
     ├── generator/            # LLM interface (Ollama/HuggingFace) and instruction tuning
     ├── tools/                # Tool schema definitions and execution router
     ├── preference_alignment/ # Direct Preference Optimization (DPO) alignment scripts
-    ├── pipeline/             # Tool-augmented RAG orchestrator pipeline
-    ├── training/             # LoRA fine-tuning utilities and tokenization scripts
+    ├── training/             # Single Canonical LLM LoRA Fine-Tuning Pipeline
+    ├── config.py             # Single Canonical System Configuration Module
+    ├── pipeline/             # Memory-aware RAG orchestrator pipelineties and tokenization scripts
     └── evaluation/           # Metric calculation functions and model comparison routines
 ```
 

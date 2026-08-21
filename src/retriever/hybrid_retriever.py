@@ -4,13 +4,10 @@ import pickle
 import logging
 from typing import List, Dict, Any, Optional
 
-import faiss
-import numpy as np
-from sentence_transformers import SentenceTransformer
-
-from src.retriever.bm25_retriever import BM25Retriever, build_bm25
+from src.retriever.dense_retriever import DenseRetriever
+from src.retriever.bm25_retriever import BM25Retriever
 from src.reranker.reranker import Reranker
-from src.utils.config import load_retrieval_config
+from src.config import load_retrieval_config
 
 logger = logging.getLogger("MedAssistRAG.HybridRetriever")
 
@@ -27,7 +24,6 @@ def min_max_normalize(scores: List[float]) -> List[float]:
     max_s = max(scores)
 
     if max_s == min_s:
-        # If all scores are equal, return 1.0 if score > 0 else 0.5
         return [1.0 if min_s > 0 else 0.5 for _ in scores]
 
     return [(s - min_s) / (max_s - min_s) for s in scores]
@@ -35,7 +31,7 @@ def min_max_normalize(scores: List[float]) -> List[float]:
 
 class HybridRetriever:
     """
-    Hybrid Retriever combining FAISS (Dense), BM25 (Sparse Keyword),
+    Hybrid Retriever combining FAISS Dense Vector Search, BM25 Keyword Search,
     Score Normalization, Weighted Score Fusion, and Cross-Encoder Reranking.
     """
 
@@ -58,96 +54,57 @@ class HybridRetriever:
         self.final_top_k = r_cfg.get("final_top_k", 5)
         self.alpha = r_cfg.get("alpha", 0.5)
 
-        # Paths
+        # Paths & Models
         self.texts_path = r_cfg.get("texts_path", "data/embeddings/texts.pkl")
-        self.faiss_index_path = r_cfg.get("faiss_index_path", "data/embeddings/faiss_index_after_retriever_finetuning.bin")
-        self.faiss_index_fallback_path = r_cfg.get("faiss_index_fallback_path", "data/embeddings/faiss_index.bin")
+        self.faiss_index_path = r_cfg.get("faiss_index_path", "data/embeddings/faiss_index.bin")
         self.bm25_index_path = r_cfg.get("bm25_index_path", "data/embeddings/bm25_index.pkl")
-
-        # Embedding model loading
-        finetuned_model_path = r_cfg.get("finetuned_embedding_model", "models/retriever_finetuned")
-        base_model_path = r_cfg.get("embedding_model", "BAAI/bge-small-en")
-
-        if os.path.exists(finetuned_model_path):
-            self.model_path = finetuned_model_path
-        else:
-            self.model_path = base_model_path
+        self.model_path = r_cfg.get("embedding_model", "BAAI/bge-small-en")
 
         # Components initialization
-        self.texts = texts
-        self.faiss_index = faiss_index
-        self.bm25_retriever = bm25_retriever
-        self.model = None
+        self.dense_retriever = DenseRetriever(
+            model_name=self.model_path,
+            index_path=self.faiss_index_path,
+            texts_path=self.texts_path,
+            index=faiss_index,
+            texts=texts
+        )
+
+        self.bm25_retriever = bm25_retriever or BM25Retriever(
+            texts=self.dense_retriever.texts,
+            index_path=self.bm25_index_path
+        )
 
         # Reranker
         self.reranker_enabled = rr_cfg.get("enabled", True)
         self.reranker = reranker if reranker is not None else (Reranker() if self.reranker_enabled else None)
 
-        self._initialize_resources()
+    @property
+    def texts(self):
+        return self.dense_retriever.texts
 
-    def _initialize_resources(self):
-        """Loads texts, FAISS index, BM25 index, and embedding model if not provided."""
-        # 1. Load Texts
-        if self.texts is None:
-            if os.path.exists(self.texts_path):
-                with open(self.texts_path, "rb") as f:
-                    self.texts = pickle.load(f)
-            else:
-                self.texts = []
+    @texts.setter
+    def texts(self, value):
+        self.dense_retriever.texts = value
 
-        # 2. Load Embedding Model
-        if self.model is None:
-            try:
-                self.model = SentenceTransformer(self.model_path)
-            except Exception as e:
-                logger.warning(f"Could not load embedding model from {self.model_path}: {e}. Fallback to BAAI/bge-small-en")
-                self.model = SentenceTransformer("BAAI/bge-small-en")
+    @property
+    def faiss_index(self):
+        return self.dense_retriever.index
 
-        # 3. Load FAISS index
-        if self.faiss_index is None:
-            if os.path.exists(self.faiss_index_path):
-                self.faiss_index = faiss.read_index(self.faiss_index_path)
-            elif os.path.exists(self.faiss_index_fallback_path):
-                self.faiss_index = faiss.read_index(self.faiss_index_fallback_path)
-            else:
-                self.faiss_index = None
+    @faiss_index.setter
+    def faiss_index(self, value):
+        self.dense_retriever.index = value
 
-        # 4. Load BM25 Retriever
-        if self.bm25_retriever is None:
-            if os.path.exists(self.bm25_index_path):
-                self.bm25_retriever = BM25Retriever(texts=self.texts, index_path=self.bm25_index_path)
-            elif self.texts:
-                self.bm25_retriever = BM25Retriever(texts=self.texts)
-            else:
-                self.bm25_retriever = None
+    @property
+    def model(self):
+        return self.dense_retriever.model
+
+    @model.setter
+    def model(self, value):
+        self.dense_retriever.model = value
 
     def search_dense(self, query: str, top_k: int = 20) -> List[Dict[str, Any]]:
-        """
-        Performs FAISS dense search using cosine similarity (inner product on normalized vectors).
-        Query embeddings are L2-normalized prior to search.
-        """
-        if not query or not self.faiss_index or not self.texts:
-            return []
-
-        q_emb = self.model.encode([query], normalize_embeddings=True)
-        q_emb = np.ascontiguousarray(q_emb.astype(np.float32))
-        faiss.normalize_L2(q_emb)
-
-        top_k = min(top_k, len(self.texts))
-        scores, indices = self.faiss_index.search(q_emb, top_k)
-
-        results = []
-        for sim_score, idx in zip(scores[0], indices[0]):
-            doc_idx = int(idx)
-            if doc_idx < 0 or doc_idx >= len(self.texts):
-                continue
-            # Direct Cosine Similarity score from FAISS IndexFlatIP
-            results.append({
-                "index": doc_idx,
-                "text": self.texts[doc_idx],
-                "score": float(sim_score)
-            })
-        return results
+        """Performs FAISS dense search using cosine similarity (IndexFlatIP)."""
+        return self.dense_retriever.search(query, top_k=top_k)
 
 
     def search_bm25(self, query: str, top_k: int = 20) -> List[Dict[str, Any]]:

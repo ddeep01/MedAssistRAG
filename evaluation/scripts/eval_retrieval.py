@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from src.retriever.hybrid_retriever import HybridRetriever
 from src.retriever.bm25_retriever import BM25Retriever
-from src.utils.config import load_retrieval_config
+from src.config import load_retrieval_config
 import faiss
 from sentence_transformers import SentenceTransformer
 

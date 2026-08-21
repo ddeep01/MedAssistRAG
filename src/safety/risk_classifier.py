@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from src.safety.safety_policy import SafetyPolicy, RiskLevel, SafetyAction
-from src.utils.config import load_safety_config
+from src.config import load_safety_config
 
 logger = logging.getLogger("MedAssistRAG.RiskClassifier")
 

@@ -1,7 +1,7 @@
 import os
 from typing import List, Dict, Any, Union
 from sentence_transformers import CrossEncoder
-from src.utils.config import load_retrieval_config
+from src.config import load_retrieval_config
 
 
 class Reranker:
@@ -13,19 +13,13 @@ class Reranker:
         config = load_retrieval_config()
         reranker_cfg = config.get("reranker", {})
 
-        target_path = model_name_or_path or reranker_cfg.get("model_path", "models/reranker_finetuned")
-        fallback_path = reranker_cfg.get("fallback_model", "cross-encoder/ms-marco-MiniLM-L-6-v2")
-
-        if target_path and os.path.exists(target_path):
-            model_to_load = target_path
-        else:
-            model_to_load = fallback_path
+        model_to_load = model_name_or_path or reranker_cfg.get("model_name", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 
         try:
             self.model = CrossEncoder(model_to_load)
         except Exception as e:
-            print(f"[Warning] Failed to load CrossEncoder from {model_to_load}: {e}. Falling back to {fallback_path}")
-            self.model = CrossEncoder(fallback_path)
+            print(f"[Warning] Failed to load CrossEncoder from {model_to_load}: {e}. Falling back to cross-encoder/ms-marco-MiniLM-L-6-v2")
+            self.model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
     def rerank(self, query: str, documents: List[str], top_n: int = 5) -> List[str]:
         """

@@ -1,7 +1,7 @@
 import os
 import yaml
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_RETRIEVAL_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "retrieval.yaml")
 DEFAULT_CONFIDENCE_CONFIG_PATH = os.path.join(BASE_DIR, "configs", "confidence.yaml")
@@ -18,17 +18,14 @@ DEFAULT_RETRIEVAL_CONFIG = {
         "candidate_k": 20,
         "final_top_k": 5,
         "alpha": 0.5,
-        "faiss_index_path": "data/embeddings/faiss_index_after_retriever_finetuning.bin",
-        "faiss_index_fallback_path": "data/embeddings/faiss_index.bin",
+        "faiss_index_path": "data/embeddings/faiss_index.bin",
         "texts_path": "data/embeddings/texts.pkl",
         "bm25_index_path": "data/embeddings/bm25_index.pkl",
-        "embedding_model": "BAAI/bge-small-en",
-        "finetuned_embedding_model": "models/retriever_finetuned"
+        "embedding_model": "BAAI/bge-small-en"
     },
     "reranker": {
         "enabled": True,
-        "model_path": "models/reranker_finetuned",
-        "fallback_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        "model_name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
         "top_n": 5
     }
 }

@@ -203,7 +203,6 @@ def test_low_risk_pipeline_citations():
     }
 
     mock_llm = MagicMock()
-    mock_llm.generate_raw.return_value = '{"tool": "SearchKB", "args": {"query": "What is hypertension?"}}'
     mock_llm.generate_with_evidence.return_value = 'Hypertension is high blood pressure. [E1]'
 
     mock_retry = MagicMock()

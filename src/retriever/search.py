@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Union, Optional
 from src.retriever.hybrid_retriever import HybridRetriever
-from src.utils.config import load_retrieval_config
+from src.config import load_retrieval_config
 
 
 class Retriever:

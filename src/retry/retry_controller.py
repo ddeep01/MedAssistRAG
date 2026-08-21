@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional, Callable
 from src.query.query_rewriter import QueryRewriter
 from src.confidence.scorer import ConfidenceScorer
 from src.retriever.search import Retriever
-from src.utils.config import load_retry_config
+from src.config import load_retry_config
 
 logger = logging.getLogger("MedAssistRAG.RetryController")
 

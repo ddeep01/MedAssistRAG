@@ -2,7 +2,7 @@ import re
 import logging
 from typing import List, Dict, Any, Optional, Union
 
-from src.utils.config import load_retry_config
+from src.config import load_retry_config
 
 logger = logging.getLogger("MedAssistRAG.QueryRewriter")
 

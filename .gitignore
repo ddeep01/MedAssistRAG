@@ -6,7 +6,10 @@ __pycache__/
 
 # Caches & OS files
 .DS_Store
+Thumbs.db
 .pytest_cache/
+.coverage
+htmlcov/
 .idea/
 .vscode/
 *.tmp
@@ -16,18 +19,25 @@ __pycache__/
 venv/
 .venv/
 env/
-.env/
+.env
 
-# Large Datasets & Embeddings
+# Local Datasets, Embeddings & Tokenized Data
+data/embeddings/*.bin
+data/embeddings/*.pkl
 data/data_combined/
-data/embeddings/
-data/processed/
-data/raw/
 data/tokenized/
 data/finetune_data.json
+data/processed/*.csv
+data/raw/*.csv
+
+# Allow Directory Keepers (.gitkeep)
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/tickets/.gitkeep
+!models/generator/lora/.gitkeep
 
 # Model Weights & Checkpoints
 models/*
-!models/retriever/
-!models/reranker/
 !models/generator/
+!models/generator/lora/
+!models/generator/lora/.gitkeep

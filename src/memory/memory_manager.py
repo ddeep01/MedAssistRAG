@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Optional
 from src.memory.models import MemoryContext
 from src.memory.short_term_memory import ShortTermMemory
 from src.memory.entity_memory import EntityMemory
-from src.utils.config import load_memory_config
+from src.config import load_memory_config
 
 logger = logging.getLogger("MedAssistRAG.MemoryManager")
 

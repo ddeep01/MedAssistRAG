@@ -3,7 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional, Set, Tuple
 
 from src.citations.models import Evidence, Citation, ValidationResult
-from src.utils.config import load_citations_config
+from src.config import load_citations_config
 
 logger = logging.getLogger("MedAssistRAG.CitationManager")
 

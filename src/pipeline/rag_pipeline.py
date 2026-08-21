@@ -1,9 +1,7 @@
-import json
 import logging
 from typing import Optional, Dict, Any, List
 
 from src.generator.llm import LLM
-from src.tools.executor import execute_tool
 from src.retry.retry_controller import RetryController
 from src.query.query_rewriter import QueryRewriter
 from src.memory.memory_manager import MemoryManager
@@ -13,24 +11,6 @@ from src.safety.ticket_manager import TicketManager
 from src.citations.citation_manager import CitationManager
 
 logger = logging.getLogger("MedAssistRAG.Pipeline")
-
-
-def tool_prompt(query: str) -> str:
-    return f"""
-You are an AI assistant with access to tools.
-
-Available tools:
-1. SearchKB(query) - search knowledge base
-2. CreateTicket(issue) - create support ticket
-3. MedicalDisclaimerTool(query) - add disclaimer for medical symptom related questions
-
-Decide the best tool.
-
-Return ONLY JSON:
-{{"tool": "...", "args": {{...}}}}
-
-Query: {query}
-"""
 
 
 class RAGPipeline:
@@ -156,82 +136,37 @@ class RAGPipeline:
         else:
             standalone_query = query
 
-        # 6. Tool decision
-        decision_raw = self.llm.generate_raw(tool_prompt(standalone_query))
+        # 6. Execute Retrieval with Self-Correction Retry Controller
+        retry_state = self.retry_controller.execute_with_retry(
+            query=standalone_query,
+            conversation_context=prior_memory_context
+        )
+        raw_candidates = retry_state.get("best_results", [])
+        sources = [c["text"] for c in raw_candidates if "text" in c]
+        confidence_info = retry_state["confidence_info"]
 
-        try:
-            decision = json.loads(decision_raw)
-        except Exception:
-            decision = {"tool": "SearchKB", "args": {"query": standalone_query}}
-
-        tool_name = decision.get("tool", "SearchKB")
-        tool_args = decision.get("args", {"query": standalone_query})
-
-        # 7. Execute Tool & Self-Correction Retry Controller
-        retry_state = None
-        raw_candidates: List[Dict[str, Any]] = []
-
-        if tool_name in ["SearchKB", "MedicalDisclaimerTool"]:
-            target_query = tool_args.get("query", standalone_query)
-            retry_state = self.retry_controller.execute_with_retry(
-                query=target_query,
-                conversation_context=prior_memory_context
-            )
-            raw_candidates = retry_state.get("best_results", [])
-            sources = [c["text"] for c in raw_candidates if "text" in c]
-            confidence_info = retry_state["confidence_info"]
-        elif tool_name == "CreateTicket":
-            tool_output = execute_tool("CreateTicket", tool_args)
-            sources = []
-            confidence_info = {
-                "confidence": 1.0,
-                "level": "HIGH",
-                "needs_retry": False,
-                "needs_query_rewrite": False
-            }
-        else:
-            sources = []
-            confidence_info = {
-                "confidence": 0.0,
-                "level": "LOW",
-                "needs_retry": True,
-                "needs_query_rewrite": True
-            }
-
-        # 8. Generate Answer with Citation Attribution
+        # 7. Generate Answer with Citation Attribution
         validation_res = None
         citations = []
 
-        if tool_name in ["SearchKB", "MedicalDisclaimerTool"]:
-            if confidence_info.get("level") == "LOW" or (retry_state and retry_state.get("needs_abstention")):
-                answer = "Insufficient evidence found to answer the query with confidence after self-correction retry attempts."
-            elif not raw_candidates:
-                answer = "No relevant information found."
-            else:
-                # Create evidence objects with temporary IDs (E1, E2, ...)
-                evidence_objects = self.citation_manager.create_evidence_objects(raw_candidates)
-                evidence_ctx_str = self.citation_manager.build_evidence_context(evidence_objects)
-
-                # Generate draft response from LLM with [E#] citation tags
-                raw_draft_answer = self.llm.generate_with_evidence(standalone_query, evidence_ctx_str)
-
-                # Validate citations, replace [E1] -> [1], consolidate sources, append Source List
-                validation_res = self.citation_manager.validate_and_format_citations(raw_draft_answer, evidence_objects)
-                answer = validation_res.formatted_text
-                citations = [c.to_dict() for c in validation_res.valid_citations]
-
-                if tool_name == "MedicalDisclaimerTool":
-                    disclaimer_info = execute_tool("MedicalDisclaimerTool", tool_args)
-                    disclaimer = disclaimer_info.get("disclaimer", "") if isinstance(disclaimer_info, dict) else ""
-                    if disclaimer:
-                        answer += f"\n\n{disclaimer}"
-
-        elif tool_name == "CreateTicket":
-            answer = f"Your issue has been registered: {tool_args.get('issue', 'Unknown')}"
+        if confidence_info.get("level") == "LOW" or (retry_state and retry_state.get("needs_abstention")):
+            answer = "Insufficient evidence found to answer the query with confidence after self-correction retry attempts."
+        elif not raw_candidates:
+            answer = "No relevant information found."
         else:
-            answer = "Something went wrong."
+            # Create evidence objects with temporary IDs (E1, E2, ...)
+            evidence_objects = self.citation_manager.create_evidence_objects(raw_candidates)
+            evidence_ctx_str = self.citation_manager.build_evidence_context(evidence_objects)
 
-        # 9. Record assistant response in memory
+            # Generate draft response from LLM with [E#] citation tags
+            raw_draft_answer = self.llm.generate_with_evidence(standalone_query, evidence_ctx_str)
+
+            # Validate citations, replace [E1] -> [1], consolidate sources, append Source List
+            validation_res = self.citation_manager.validate_and_format_citations(raw_draft_answer, evidence_objects)
+            answer = validation_res.formatted_text
+            citations = [c.to_dict() for c in validation_res.valid_citations]
+
+        # 8. Record assistant response in memory
         self.memory_manager.add_message(cid, "assistant", answer)
 
         return {
