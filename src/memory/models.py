@@ -68,11 +68,10 @@ class EntityStore:
 class MemoryContext:
     recent_messages: List[Dict[str, str]] = field(default_factory=list)
     entities: Dict[str, List[str]] = field(default_factory=dict)
-    summary: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "recent_messages": self.recent_messages,
-            "entities": self.entities,
-            "summary": self.summary
+            "entities": self.entities
         }
+

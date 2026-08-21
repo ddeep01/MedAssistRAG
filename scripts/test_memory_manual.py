@@ -29,8 +29,10 @@ def main():
     # Initialize vector index and search components
     emb_model = SentenceTransformer("BAAI/bge-small-en")
     embeddings = emb_model.encode(corpus_texts, normalize_embeddings=True)
+    embeddings = np.ascontiguousarray(embeddings.astype(np.float32))
+    faiss.normalize_L2(embeddings)
     dim = embeddings.shape[1]
-    faiss_idx = faiss.IndexFlatL2(dim)
+    faiss_idx = faiss.IndexFlatIP(dim)
     faiss_idx.add(embeddings)
 
     retriever = HybridRetriever(texts=corpus_texts, faiss_index=faiss_idx)

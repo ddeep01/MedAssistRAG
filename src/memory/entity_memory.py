@@ -92,7 +92,6 @@ class EntityMemory:
             "tests": [], "procedures": [], "body_parts": []
         }
 
-        # Known keywords for fallback
         condition_patterns = ["hypertension", "diabetes", "asthma", "covid-19", "copd"]
         med_patterns = ["metformin", "amlodipine", "lisinopril", "insulin", "aspirin", "ibuprofen"]
         symptom_patterns = ["headache", "fever", "cough", "nausea", "diarrhea", "chest pain"]

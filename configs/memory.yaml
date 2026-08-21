@@ -9,6 +9,3 @@ memory:
   entities:
     enabled: true
 
-  summary:
-    enabled: true
-    trigger_messages: 10

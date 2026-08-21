@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 from src.memory.short_term_memory import ShortTermMemory
 from src.memory.entity_memory import EntityMemory
-from src.memory.summary_memory import SummaryMemory
 from src.memory.memory_manager import MemoryManager
 from src.query.query_rewriter import QueryRewriter
 
@@ -139,7 +138,6 @@ def test_followup_query_resolution():
 
     rewriter = QueryRewriter(llm=mock_llm)
     ctx = {
-        "summary": "",
         "entities": {"conditions": ["hypertension"]},
         "recent_messages": [{"role": "user", "content": "I have hypertension."}]
     }
@@ -157,7 +155,6 @@ def test_medication_reference_resolution():
 
     rewriter = QueryRewriter(llm=mock_llm)
     ctx = {
-        "summary": "",
         "entities": {"medications": ["metformin"]},
         "recent_messages": [{"role": "user", "content": "I take metformin."}]
     }
@@ -176,7 +173,6 @@ def test_ambiguous_multiple_entities():
 
     rewriter = QueryRewriter(llm=mock_llm)
     ctx = {
-        "summary": "",
         "entities": {"conditions": ["diabetes", "hypertension"]},
         "recent_messages": [{"role": "user", "content": "I have diabetes and hypertension."}]
     }
@@ -201,33 +197,7 @@ def test_conversation_clearing():
 
 
 # ----------------------------------------------------
-# TEST 13: SUMMARY GENERATION
-# ----------------------------------------------------
-def test_summary_generation():
-    mock_llm = MagicMock()
-    mock_llm.generate_raw.return_value = "User discussed hypertension and symptoms."
-
-    sm = SummaryMemory(llm=mock_llm, trigger_messages=2, enabled=True)
-    msgs = [{"role": "user", "content": "I have hypertension."}, {"role": "assistant", "content": "Tell me more."}]
-
-    sum_text = sm.update_summary("conv-1", msgs)
-    assert sum_text == "User discussed hypertension and symptoms."
-
-
-# ----------------------------------------------------
-# TEST 14: SUMMARY DOES NOT INVENT FACTS
-# ----------------------------------------------------
-def test_summary_grounded():
-    mock_llm = MagicMock()
-    mock_llm.generate_raw.return_value = "User asked about diabetes symptoms."
-
-    sm = SummaryMemory(llm=mock_llm, trigger_messages=1, enabled=True)
-    sum_text = sm.update_summary("conv-1", [{"role": "user", "content": "What is diabetes?"}])
-    assert "diabetes" in sum_text.lower()
-
-
-# ----------------------------------------------------
-# TEST 15: MEMORY DISABLED FLAG
+# TEST 13: MEMORY DISABLED FLAG
 # ----------------------------------------------------
 def test_memory_disabled():
     mock_llm = MagicMock()
@@ -239,4 +209,4 @@ def test_memory_disabled():
 
     assert ctx.recent_messages == []
     assert ctx.entities == {}
-    assert ctx.summary == ""
+

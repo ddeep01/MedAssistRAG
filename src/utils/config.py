@@ -62,13 +62,10 @@ DEFAULT_MEMORY_CONFIG = {
         },
         "entities": {
             "enabled": True
-        },
-        "summary": {
-            "enabled": True,
-            "trigger_messages": 10
         }
     }
 }
+
 
 DEFAULT_SAFETY_CONFIG = {
     "safety": {

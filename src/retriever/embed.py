@@ -9,6 +9,7 @@ def create_embeddings(model, texts):
     embeddings = model.encode(
         texts,
         show_progress_bar=True,
-        convert_to_numpy=True
+        convert_to_numpy=True,
+        normalize_embeddings=True
     )
-    return embeddings
+    return embeddings

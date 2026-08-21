@@ -37,7 +37,7 @@ def sample_faiss_index(sample_corpus):
     embeddings = np.random.randn(len(sample_corpus), 384).astype("float32")
     # Normalize for cosine/similarity testing
     faiss.normalize_L2(embeddings)
-    index = faiss.IndexFlatL2(384)
+    index = faiss.IndexFlatIP(384)
     index.add(embeddings)
     return index
 
@@ -80,7 +80,7 @@ def test_faiss_retrieval(sample_corpus, sample_faiss_index):
     assert len(results) > 0
     assert "index" in results[0]
     assert "score" in results[0]
-    assert "raw_distance" in results[0]
+    assert isinstance(results[0]["score"], float)
 
 
 # ----------------------------------------------------
@@ -220,3 +220,64 @@ def test_drug_name_query(sample_corpus, sample_faiss_index):
     assert len(results) > 0
     retrieved_texts = [r["text"] for r in results]
     assert any("metformin" in t.lower() for t in retrieved_texts)
+
+
+# ----------------------------------------------------
+# 13. COSINE SIMILARITY & INDEXFLATIP VERIFICATION
+# ----------------------------------------------------
+def test_cosine_similarity_faiss_properties(sample_corpus):
+    # a. Document embeddings are normalized before indexing
+    embeddings = np.random.randn(len(sample_corpus), 384).astype("float32")
+    faiss.normalize_L2(embeddings)
+    norms = np.linalg.norm(embeddings, axis=1)
+    np.testing.assert_allclose(norms, 1.0, rtol=1e-5)
+
+    # c. FAISS uses IndexFlatIP
+    index = faiss.IndexFlatIP(384)
+    assert isinstance(index, faiss.IndexFlatIP)
+    index.add(embeddings)
+
+    retriever = HybridRetriever(texts=sample_corpus, faiss_index=index)
+    results = retriever.search_dense("metformin diabetes", top_k=3)
+
+    # b. Query embeddings are normalized before search
+    # e. The old 1 / (1 + distance) conversion is no longer used (score is direct cosine similarity in [-1.0, 1.0])
+    assert len(results) > 0
+    top = results[0]
+    assert "score" in top
+    assert -1.0 <= top["score"] <= 1.0
+    assert "raw_distance" not in top  # Old L2 distance key removed
+
+
+def test_higher_cosine_similarity_better_ranking(sample_corpus):
+    # d. Higher cosine similarity produces a better dense ranking
+    doc_vectors = np.array([
+        [1.0, 0.0, 0.0],        # Exactly aligned with query [1, 0, 0] -> Cosine = 1.0
+        [0.7071, 0.7071, 0.0],  # Angle 45 deg -> Cosine = 0.7071
+        [0.0, 1.0, 0.0],        # Orthogonal -> Cosine = 0.0
+    ], dtype=np.float32)
+
+    faiss.normalize_L2(doc_vectors)
+    idx = faiss.IndexFlatIP(3)
+    idx.add(doc_vectors)
+
+    mock_texts = ["Aligned Doc", "Partial Doc", "Orthogonal Doc"]
+    retriever = HybridRetriever(texts=mock_texts, faiss_index=idx)
+
+    class DummyModel:
+        def encode(self, texts, normalize_embeddings=True):
+            v = np.array([[1.0, 0.0, 0.0]], dtype=np.float32)
+            faiss.normalize_L2(v)
+            return v
+
+    retriever.model = DummyModel()
+
+    res = retriever.search_dense("query", top_k=3)
+    assert len(res) == 3
+    assert res[0]["text"] == "Aligned Doc"
+    assert res[0]["score"] == pytest.approx(1.0, abs=1e-4)
+    assert res[1]["text"] == "Partial Doc"
+    assert res[1]["score"] == pytest.approx(0.7071, abs=1e-4)
+    assert res[2]["text"] == "Orthogonal Doc"
+    assert res[2]["score"] == pytest.approx(0.0, abs=1e-4)
+

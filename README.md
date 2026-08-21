@@ -1,4 +1,4 @@
-# MedAssistRAG
+  # MedAssistRAG
 
 ## Overview
 
@@ -29,7 +29,7 @@ MedAssistRAG addresses these challenges by enforcing strict evidence-grounded ge
 | **Confidence Scoring** | `src/confidence/scorer.py` | Implemented |
 | **Self-Correction Retry Loop** | `src/retry/retry_controller.py` | Implemented |
 | **Query Rewriting** | `src/query/query_rewriter.py` | Implemented |
-| **Multi-Turn Memory** | `src/memory/memory_manager.py` (Short-Term, Entity, Summary) | Implemented |
+| **Multi-Turn Memory** | `src/memory/memory_manager.py` (Short-Term, Entity) | Implemented |
 | **Risk Classification** | `src/safety/risk_classifier.py` (LOW, MEDIUM, HIGH) | Implemented |
 | **Support Ticket Manager** | `src/safety/ticket_manager.py` | Implemented |
 | **Citation Attribution** | `src/citations/citation_manager.py` | Implemented |
@@ -108,7 +108,7 @@ MedAssistRAG addresses these challenges by enforcing strict evidence-grounded ge
 ## End-to-End Workflow
 
 1. **User Query Input**: The user sends a query (and optional `conversation_id`) to `RAGPipeline.query()`.
-2. **Conversation Context Lookup**: Memory context (short-term history, tracked entities, summary) is resolved.
+2. **Conversation Context Lookup**: Memory context (short-term history, tracked entities) is resolved.
 3. **Medical Risk Classification**: `RiskClassifier` evaluates query risk:
    - **HIGH Risk** (e.g. emergency symptoms or dosage changes): Bypasses retrieval and returns a controlled emergency warning (`SafetyPolicy.get_high_response()`).
    - **MEDIUM Risk** (e.g. personal clinical guidance): Bypasses retrieval, creates a support ticket in `data/tickets/tickets.json`, and returns a professional referral response (`SafetyPolicy.get_medium_response()`).
@@ -181,7 +181,6 @@ $$\text{Conf}_{\text{final}} = \frac{\sum_{i=1}^{K} w_{\text{rank}, i} \cdot \te
 Conversation state (`src/memory/memory_manager.py`) is tracked per `conversation_id`:
 - **Short-Term Memory (`short_term_memory.py`)**: Bounded sliding window of recent messages (max 10 messages).
 - **Entity Memory (`entity_memory.py`)**: Tracks medical entities (`conditions`, `symptoms`, `medications`, `tests`, `procedures`, `body_parts`).
-- **Summary Memory (`summary_memory.py`)**: Automatically generates concise conversation summaries when history exceeds 10 messages.
 
 ---
 
@@ -344,7 +343,7 @@ System parameters are configured via YAML files in `configs/`:
 - `retrieval.yaml`: Mode (`hybrid`), top-K limits, alpha weighting, model paths.
 - `confidence.yaml`: Retrieval/reranker weights, threshold levels (`HIGH: 0.80`, `MEDIUM: 0.60`).
 - `retry.yaml`: Max retries (`2`), improvement threshold (`0.05`).
-- `memory.yaml`: Short-term max messages (`10`), entity & summary triggers.
+- `memory.yaml`: Short-term max messages (`10`), entity extraction configuration.
 - `safety.yaml`: Fallback risk level (`HIGH`), risk mappings.
 - `citations.yaml`: Max evidence chunks (`5`), citation formatting rules.
 

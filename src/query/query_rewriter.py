@@ -24,11 +24,9 @@ def format_memory_context(conversation_context: Any) -> str:
         return str(conversation_context)
 
     lines = []
-    summary = ctx_dict.get("summary", "")
-    if summary:
-        lines.append(f"Summary: {summary}")
 
     entities = ctx_dict.get("entities", {})
+
     if entities:
         ent_strs = []
         for category, items in entities.items():

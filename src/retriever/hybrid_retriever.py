@@ -122,28 +122,33 @@ class HybridRetriever:
                 self.bm25_retriever = None
 
     def search_dense(self, query: str, top_k: int = 20) -> List[Dict[str, Any]]:
-        """Performs FAISS dense search. Converts L2 distance to similarity score."""
+        """
+        Performs FAISS dense search using cosine similarity (inner product on normalized vectors).
+        Query embeddings are L2-normalized prior to search.
+        """
         if not query or not self.faiss_index or not self.texts:
             return []
 
         q_emb = self.model.encode([query], normalize_embeddings=True)
+        q_emb = np.ascontiguousarray(q_emb.astype(np.float32))
+        faiss.normalize_L2(q_emb)
+
         top_k = min(top_k, len(self.texts))
-        distances, indices = self.faiss_index.search(q_emb, top_k)
+        scores, indices = self.faiss_index.search(q_emb, top_k)
 
         results = []
-        for dist, idx in zip(distances[0], indices[0]):
+        for sim_score, idx in zip(scores[0], indices[0]):
             doc_idx = int(idx)
             if doc_idx < 0 or doc_idx >= len(self.texts):
                 continue
-            # Convert L2 distance to similarity score: higher is better
-            sim_score = 1.0 / (1.0 + float(dist))
+            # Direct Cosine Similarity score from FAISS IndexFlatIP
             results.append({
                 "index": doc_idx,
                 "text": self.texts[doc_idx],
-                "score": sim_score,
-                "raw_distance": float(dist)
+                "score": float(sim_score)
             })
         return results
+
 
     def search_bm25(self, query: str, top_k: int = 20) -> List[Dict[str, Any]]:
         """Performs BM25 keyword search."""
