@@ -20,13 +20,11 @@ def create_mock_retriever(scores_map):
         if query in scores_map:
             score = scores_map[query]
             return [
-                {"index": 0, "text": f"Doc for {query}", "hybrid_score": score, "reranker_score": score},
-                {"index": 1, "text": "Baseline doc", "hybrid_score": 0.0, "reranker_score": 0.0}
+                {"index": 0, "text": f"Doc for {query}", "hybrid_score": score, "reranker_score": score}
             ]
         # Default low score query
         return [
-            {"index": 0, "text": f"Low doc for {query}", "hybrid_score": 0.20, "reranker_score": 0.20},
-            {"index": 1, "text": "Baseline doc", "hybrid_score": 0.0, "reranker_score": 0.0}
+            {"index": 0, "text": f"Low doc for {query}", "hybrid_score": 0.10, "reranker_score": 0.10}
         ]
 
     mock_ret.search_structured.side_effect = mock_search_structured
@@ -37,7 +35,7 @@ def create_mock_retriever(scores_map):
 # TEST 1: HIGH CONFIDENCE (NO REWRITE)
 # ----------------------------------------------------
 def test_high_confidence_no_rewrite():
-    mock_ret = create_mock_retriever({"high query": 0.90})
+    mock_ret = create_mock_retriever({"high query": 0.60})
     mock_rewriter = MagicMock()
 
     controller = RetryController(retriever=mock_ret, query_rewriter=mock_rewriter)
@@ -55,7 +53,7 @@ def test_high_confidence_no_rewrite():
 # TEST 2: MEDIUM CONFIDENCE (NO REWRITE)
 # ----------------------------------------------------
 def test_medium_confidence_no_rewrite():
-    mock_ret = create_mock_retriever({"medium query": 0.70})
+    mock_ret = create_mock_retriever({"medium query": 0.40})
     mock_rewriter = MagicMock()
 
     controller = RetryController(retriever=mock_ret, query_rewriter=mock_rewriter)
@@ -72,7 +70,7 @@ def test_medium_confidence_no_rewrite():
 # TEST 3: LOW CONFIDENCE (REWRITER CALLED)
 # ----------------------------------------------------
 def test_low_confidence_triggers_rewrite():
-    mock_ret = create_mock_retriever({"low query": 0.30, "improved query": 0.85})
+    mock_ret = create_mock_retriever({"low query": 0.10, "improved query": 0.60})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.return_value = "improved query"
 
@@ -86,10 +84,10 @@ def test_low_confidence_triggers_rewrite():
 
 
 # ----------------------------------------------------
-# TEST 4: REWRITE IMPROVES CONFIDENCE (0.40 -> 0.78)
+# TEST 4: REWRITE IMPROVES CONFIDENCE (LOW -> MEDIUM)
 # ----------------------------------------------------
 def test_rewrite_improves_confidence():
-    mock_ret = create_mock_retriever({"original": 0.40, "rewritten": 0.78})
+    mock_ret = create_mock_retriever({"original": 0.10, "rewritten": 0.40})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.return_value = "rewritten"
 
@@ -103,10 +101,10 @@ def test_rewrite_improves_confidence():
 
 
 # ----------------------------------------------------
-# TEST 5: REWRITE DOES NOT IMPROVE CONFIDENCE (0.40 -> 0.38)
+# TEST 5: REWRITE DOES NOT IMPROVE CONFIDENCE (RETRY 2 SUCCEEDS)
 # ----------------------------------------------------
 def test_rewrite_no_improvement_retries():
-    mock_ret = create_mock_retriever({"original": 0.40, "rewrite1": 0.38, "rewrite2": 0.82})
+    mock_ret = create_mock_retriever({"original": 0.10, "rewrite1": 0.05, "rewrite2": 0.60})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["rewrite1", "rewrite2"]
 
@@ -122,7 +120,7 @@ def test_rewrite_no_improvement_retries():
 # TEST 6: ALL RETRIES REMAIN LOW (INSUFFICIENT_EVIDENCE)
 # ----------------------------------------------------
 def test_all_retries_remain_low():
-    mock_ret = create_mock_retriever({"original": 0.30, "rewrite1": 0.35, "rewrite2": 0.32})
+    mock_ret = create_mock_retriever({"original": 0.10, "rewrite1": 0.15, "rewrite2": 0.12})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["rewrite1", "rewrite2"]
 
@@ -132,14 +130,14 @@ def test_all_retries_remain_low():
     assert res["status"] == "INSUFFICIENT_EVIDENCE"
     assert res["needs_abstention"] is True
     assert res["best_level"] == "LOW"
-    assert res["retry_count"] == 1  # rewrite1 (0.35) was best attempt
+    assert res["retry_count"] == 1  # rewrite1 (0.15) was best attempt
 
 
 # ----------------------------------------------------
 # TEST 7: MAXIMUM RETRIES REACHED
 # ----------------------------------------------------
 def test_max_retries_reached():
-    mock_ret = create_mock_retriever({"original": 0.20, "r1": 0.25, "r2": 0.28, "r3": 0.90})
+    mock_ret = create_mock_retriever({"original": 0.05, "r1": 0.10, "r2": 0.15, "r3": 0.60})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["r1", "r2", "r3"]
 
@@ -169,7 +167,7 @@ def test_rewriter_empty_string_fallback():
 # TEST 9: REPEATED REWRITES PREVENT INFINITE LOOP
 # ----------------------------------------------------
 def test_repeated_rewrite_loop_prevention():
-    mock_ret = create_mock_retriever({"original": 0.30, "same rewrite": 0.35})
+    mock_ret = create_mock_retriever({"original": 0.10, "same rewrite": 0.15})
     mock_rewriter = MagicMock()
     # Rewriter returns the exact same query repeatedly
     mock_rewriter.rewrite.return_value = "same rewrite"
@@ -185,7 +183,7 @@ def test_repeated_rewrite_loop_prevention():
 # TEST 10: REWRITTEN QUERY REACHES HIGH (STOP IMMEDIATELY)
 # ----------------------------------------------------
 def test_stop_immediately_on_high():
-    mock_ret = create_mock_retriever({"original": 0.30, "r1": 0.90, "r2": 0.95})
+    mock_ret = create_mock_retriever({"original": 0.10, "r1": 0.60, "r2": 0.90})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["r1", "r2"]
 
@@ -201,7 +199,7 @@ def test_stop_immediately_on_high():
 # TEST 11: REWRITTEN QUERY REACHES MEDIUM (STOP IMMEDIATELY)
 # ----------------------------------------------------
 def test_stop_immediately_on_medium():
-    mock_ret = create_mock_retriever({"original": 0.30, "r1": 0.70, "r2": 0.95})
+    mock_ret = create_mock_retriever({"original": 0.10, "r1": 0.40, "r2": 0.90})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["r1", "r2"]
 
@@ -214,16 +212,16 @@ def test_stop_immediately_on_medium():
 
 
 # ----------------------------------------------------
-# TEST 12: BEST ATTEMPT TRACKING (0.40 -> 0.75 -> 0.61 -> KEEPS 0.75)
+# TEST 12: BEST ATTEMPT TRACKING (0.10 -> 0.40 -> 0.30 -> KEEPS 0.40)
 # ----------------------------------------------------
 def test_best_attempt_tracking():
-    mock_ret = create_mock_retriever({"original": 0.40, "r1": 0.75, "r2": 0.61})
+    mock_ret = create_mock_retriever({"original": 0.10, "r1": 0.40, "r2": 0.30})
     mock_rewriter = MagicMock()
     mock_rewriter.rewrite.side_effect = ["r1", "r2"]
 
     controller = RetryController(retriever=mock_ret, query_rewriter=mock_rewriter)
     res = controller.execute_with_retry("original")
 
-    # r1 reaches MEDIUM (0.75) and is accepted as best attempt
+    # r1 reaches MEDIUM (0.40 -> 0.70) and is accepted as best attempt
     assert res["best_query"] == "r1"
-    assert res["best_confidence"] == pytest.approx(0.75, 0.05) or res["best_level"] in ["HIGH", "MEDIUM"]
+    assert res["best_level"] in ["HIGH", "MEDIUM"]
